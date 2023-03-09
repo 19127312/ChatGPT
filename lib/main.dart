@@ -1,8 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 import 'chat_message.dart';
+import 'package:avatar_glow/avatar_glow.dart';
+import "package:speech_to_text/speech_to_text.dart" as stt;
 
 void main() {
   runApp(const MyApp());
@@ -33,13 +36,17 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final txtController = TextEditingController();
   final srlController = ScrollController();
+
   final List<ChatMessage> msgs = [];
 
   late bool isLoading;
-
+  late stt.SpeechToText _speech;
+  String _textSpeech = "";
+  bool isListening = false;
   @override
   void initState() {
     super.initState();
+    _speech = stt.SpeechToText();
     isLoading = false;
   }
 
@@ -64,6 +71,23 @@ class _ChatPageState extends State<ChatPage> {
         ),
         backgroundColor: const Color.fromARGB(247, 247, 248, 255),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        child: AvatarGlow(
+          animate: isListening,
+          glowColor: Colors.blue,
+          endRadius: 75.0,
+          duration: const Duration(milliseconds: 2000),
+          repeatPauseDuration: const Duration(milliseconds: 100),
+          repeat: true,
+          child: FloatingActionButton(
+            onPressed: () => onListen(),
+            backgroundColor: Colors.blue,
+            child: Icon(isListening ? Icons.mic : Icons.mic_none),
+          ),
+        ),
+      ),
       backgroundColor: backgroundColor,
       body: SafeArea(
         child: Column(
@@ -76,7 +100,7 @@ class _ChatPageState extends State<ChatPage> {
               child: const Padding(
                 padding: EdgeInsets.all(8.0),
                 child: CircularProgressIndicator(
-                  color: Colors.white,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -208,17 +232,57 @@ class _ChatPageState extends State<ChatPage> {
       curve: Curves.easeOut,
     );
   }
+
+  void onListen() async {
+    if (!isListening) {
+      print("start");
+      bool available = await _speech.initialize(
+        onStatus: (val) => print('onStatus: $val'),
+        onError: (val) => print('onError: $val'),
+      );
+      if (available) {
+        setState(() => isListening = true);
+        _speech.listen(
+          onResult: (val) => setState(() {
+            _textSpeech = val.recognizedWords;
+            txtController.text = _textSpeech;
+          }),
+        );
+      }
+    } else {
+      print("end");
+
+      setState(() {
+        isListening = false;
+        _speech.stop();
+      });
+    }
+  }
 }
 
 class ChatMessageWidget extends StatelessWidget {
-  const ChatMessageWidget(
+  ChatMessageWidget(
       {super.key, required this.text, required this.chatMessageType});
 
   final String text;
   final ChatMessageType chatMessageType;
+  final FlutterTts flutterTts = FlutterTts();
 
   @override
   Widget build(BuildContext context) {
+    var iconButton = IconButton(
+      icon: const Icon(
+        Icons.send_rounded,
+        color: Color.fromRGBO(142, 142, 160, 1),
+      ),
+      onPressed: () async {
+        print(text);
+
+        await flutterTts.setLanguage("en-US");
+        await flutterTts.setPitch(1);
+        await flutterTts.speak(text);
+      },
+    );
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 5.0),
       padding: const EdgeInsets.all(8),
@@ -246,11 +310,10 @@ class ChatMessageWidget extends StatelessWidget {
                   ),
                 ),
           Expanded(
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.all(8.0),
+                Expanded(
                   child: Text(
                     text,
                     style: Theme.of(context)
@@ -259,6 +322,7 @@ class ChatMessageWidget extends StatelessWidget {
                         ?.copyWith(color: Colors.black),
                   ),
                 ),
+                iconButton
               ],
             ),
           ),
