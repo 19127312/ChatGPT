@@ -71,23 +71,6 @@ class _ChatPageState extends State<ChatPage> {
         ),
         backgroundColor: const Color.fromARGB(247, 247, 248, 255),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        child: AvatarGlow(
-          animate: isListening,
-          glowColor: Colors.blue,
-          endRadius: 75.0,
-          duration: const Duration(milliseconds: 2000),
-          repeatPauseDuration: const Duration(milliseconds: 100),
-          repeat: true,
-          child: FloatingActionButton(
-            onPressed: () => onListen(),
-            backgroundColor: Colors.blue,
-            child: Icon(isListening ? Icons.mic : Icons.mic_none),
-          ),
-        ),
-      ),
       backgroundColor: backgroundColor,
       body: SafeArea(
         child: Column(
@@ -98,7 +81,7 @@ class _ChatPageState extends State<ChatPage> {
             Visibility(
               visible: isLoading,
               child: const Padding(
-                padding: EdgeInsets.all(8.0),
+                padding: EdgeInsets.only(bottom: 30),
                 child: CircularProgressIndicator(
                   color: Colors.black,
                 ),
@@ -109,6 +92,7 @@ class _ChatPageState extends State<ChatPage> {
               child: Row(
                 children: [
                   textInput(),
+                  voiceBtn(),
                   buttonSubmit(),
                 ],
               ),
@@ -157,6 +141,19 @@ class _ChatPageState extends State<ChatPage> {
           chatMessageType: message.chatMessageType,
         );
       },
+    );
+  }
+
+  Widget voiceBtn() {
+    return Container(
+      color: answerBackgroundColor,
+      child: IconButton(
+        onPressed: () => onListen(),
+        icon: Icon(
+          isListening ? Icons.mic : Icons.mic_none,
+          color: Colors.black,
+        ),
+      ),
     );
   }
 
@@ -235,7 +232,6 @@ class _ChatPageState extends State<ChatPage> {
 
   void onListen() async {
     if (!isListening) {
-      print("start");
       bool available = await _speech.initialize(
         onStatus: (val) => print('onStatus: $val'),
         onError: (val) => print('onError: $val'),
@@ -250,8 +246,6 @@ class _ChatPageState extends State<ChatPage> {
         );
       }
     } else {
-      print("end");
-
       setState(() {
         isListening = false;
         _speech.stop();
@@ -272,12 +266,10 @@ class ChatMessageWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     var iconButton = IconButton(
       icon: const Icon(
-        Icons.send_rounded,
+        Icons.speaker_notes,
         color: Color.fromRGBO(142, 142, 160, 1),
       ),
       onPressed: () async {
-        print(text);
-
         await flutterTts.setLanguage("en-US");
         await flutterTts.setPitch(1);
         await flutterTts.speak(text);
