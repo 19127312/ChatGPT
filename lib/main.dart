@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dart_openai/openai.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
@@ -37,7 +38,9 @@ class _ChatPageState extends State<ChatPage> {
   final txtController = TextEditingController();
   final srlController = ScrollController();
 
-  final List<ChatMessage> msgs = [];
+  final msgs = <ChatMessage>[
+    ChatMessage(isUserMessage: false, text: 'Hello, how can I help?'),
+  ];
 
   late bool isLoading;
   late stt.SpeechToText _speech;
@@ -104,30 +107,43 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<String> chatGPTResponse(String prompt) async {
-    const apiKey = "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";
-
-    var url = Uri.https("api.openai.com", "/v1/completions");
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        "Authorization": "Bearer $apiKey"
-      },
-      body: json.encode({
-        "model": "text-davinci-003",
-        "prompt": prompt,
-        'temperature': 0.5,
-        'max_tokens': 100,
-        'top_p': 1,
-        'frequency_penalty': 0.0,
-        'presence_penalty': 0.0,
-      }),
+    OpenAI.apiKey = "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";
+    final chatCompletion = await OpenAI.instance.chat.create(
+      model: 'gpt-3.5-turbo',
+      messages: [
+        ...msgs.map(
+          (e) => OpenAIChatCompletionChoiceMessageModel(
+            role: e.isUserMessage ? 'user' : 'assistant',
+            content: e.text,
+          ),
+        ),
+      ],
     );
+    return chatCompletion.choices.first.message.content;
+    // const apiKey = "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";
 
-    // Do something with the response
-    Map<String, dynamic> newresponse = jsonDecode(response.body);
+    // var url = Uri.https("api.openai.com", "/v1/completions");
+    // final response = await http.post(
+    //   url,
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //     "Authorization": "Bearer $apiKey"
+    //   },
+    //   body: json.encode({
+    //     "model": "text-davinci-003",
+    //     "prompt": prompt,
+    //     'temperature': 0.5,
+    //     'max_tokens': 100,
+    //     'top_p': 1,
+    //     'frequency_penalty': 0.0,
+    //     'presence_penalty': 0.0,
+    //   }),
+    // );
 
-    return newresponse['choices'][0]['text'];
+    // // Do something with the response
+    // Map<String, dynamic> newresponse = jsonDecode(response.body);
+
+    // return newresponse['choices'][0]['text'];
   }
 
   ListView messageList() {
@@ -138,7 +154,7 @@ class _ChatPageState extends State<ChatPage> {
         var message = msgs[index];
         return ChatMessageWidget(
           text: message.text,
-          chatMessageType: message.chatMessageType,
+          isUserMessage: message.isUserMessage,
         );
       },
     );
@@ -173,7 +189,7 @@ class _ChatPageState extends State<ChatPage> {
                 msgs.add(
                   ChatMessage(
                     text: txtController.text,
-                    chatMessageType: ChatMessageType.question,
+                    isUserMessage: true,
                   ),
                 );
                 isLoading = true;
@@ -190,7 +206,7 @@ class _ChatPageState extends State<ChatPage> {
                 msgs.add(
                   ChatMessage(
                     text: value,
-                    chatMessageType: ChatMessageType.answer,
+                    isUserMessage: false,
                   ),
                 );
               });
@@ -256,10 +272,10 @@ class _ChatPageState extends State<ChatPage> {
 
 class ChatMessageWidget extends StatelessWidget {
   ChatMessageWidget(
-      {super.key, required this.text, required this.chatMessageType});
+      {super.key, required this.text, required this.isUserMessage});
 
   final String text;
-  final ChatMessageType chatMessageType;
+  final bool isUserMessage;
   final FlutterTts flutterTts = FlutterTts();
 
   @override
@@ -278,13 +294,11 @@ class ChatMessageWidget extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 5.0),
       padding: const EdgeInsets.all(8),
-      color: chatMessageType == ChatMessageType.answer
-          ? answerBackgroundColor
-          : backgroundColor,
+      color: isUserMessage == false ? answerBackgroundColor : backgroundColor,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          chatMessageType == ChatMessageType.answer
+          isUserMessage == false
               ? Container(
                   margin: const EdgeInsets.only(right: 16.0, left: 8.0),
                   child: CircleAvatar(

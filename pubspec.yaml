@@ -38,6 +38,7 @@ dependencies:
   speech_to_text: ^5.0.0
   flutter_tts: ^3.0.0
   avatar_glow: ^2.0.0
+  dart_openai: ^1.8.4
 
 dev_dependencies:
   flutter_test:

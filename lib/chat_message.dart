@@ -1,12 +1,12 @@
 // ignore: file_names
-enum ChatMessageType { question, answer }
+enum ChatMessageType { user, assistant }
 
 class ChatMessage {
   ChatMessage({
     required this.text,
-    required this.chatMessageType,
+    required this.isUserMessage,
   });
 
   final String text;
-  final ChatMessageType chatMessageType;
+  final bool isUserMessage;
 }
