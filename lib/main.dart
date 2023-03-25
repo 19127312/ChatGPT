@@ -1,12 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dart_openai/openai.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:http/http.dart' as http;
 import 'chat_message.dart';
-import 'package:avatar_glow/avatar_glow.dart';
 import "package:speech_to_text/speech_to_text.dart" as stt;
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -38,9 +38,7 @@ class _ChatPageState extends State<ChatPage> {
   final txtController = TextEditingController();
   final srlController = ScrollController();
 
-  final msgs = <ChatMessage>[
-    ChatMessage(isUserMessage: false, text: 'Hello, how can I help?'),
-  ];
+  var msgs = <ChatMessage>[];
 
   late bool isLoading;
   late stt.SpeechToText _speech;
@@ -51,6 +49,9 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
     _speech = stt.SpeechToText();
     isLoading = false;
+    readChatMessagesFromFile().then((value) => msgs = value);
+    // msgs = readChatMessagesFromFile() as List<ChatMessage>;
+    OpenAI.apiKey = "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";
   }
 
   @override
@@ -107,11 +108,17 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<String> chatGPTResponse(String prompt) async {
-    OpenAI.apiKey = "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";
+    // ignore: unused_local_variable
+    List<ChatMessage> lastTenItems;
+    if (msgs.length >= 6) {
+      lastTenItems = msgs.sublist(msgs.length - 5, msgs.length);
+    } else {
+      lastTenItems = msgs.sublist(0, msgs.length);
+    }
     final chatCompletion = await OpenAI.instance.chat.create(
       model: 'gpt-3.5-turbo',
       messages: [
-        ...msgs.map(
+        ...lastTenItems.map(
           (e) => OpenAIChatCompletionChoiceMessageModel(
             role: e.isUserMessage ? 'user' : 'assistant',
             content: e.text,
@@ -119,31 +126,38 @@ class _ChatPageState extends State<ChatPage> {
         ),
       ],
     );
+    lastTenItems.add(ChatMessage(
+      text: chatCompletion.choices.first.message.content,
+      isUserMessage: false,
+    ));
+    writeChatMessagesToFile(lastTenItems);
+
     return chatCompletion.choices.first.message.content;
-    // const apiKey = "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";
+  }
 
-    // var url = Uri.https("api.openai.com", "/v1/completions");
-    // final response = await http.post(
-    //   url,
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     "Authorization": "Bearer $apiKey"
-    //   },
-    //   body: json.encode({
-    //     "model": "text-davinci-003",
-    //     "prompt": prompt,
-    //     'temperature': 0.5,
-    //     'max_tokens': 100,
-    //     'top_p': 1,
-    //     'frequency_penalty': 0.0,
-    //     'presence_penalty': 0.0,
-    //   }),
-    // );
+  void writeChatMessagesToFile(List<ChatMessage> messages) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/chat_messages.json');
+    final jsonStr = jsonEncode(messages.map((m) => m.toJson()).toList());
+    await file.writeAsString(jsonStr);
+  }
 
-    // // Do something with the response
-    // Map<String, dynamic> newresponse = jsonDecode(response.body);
+  Future<List<ChatMessage>> readChatMessagesFromFile() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/chat_messages.json');
+    if (!await file.exists()) {
+      return [];
+    }
+    final jsonStr = await file.readAsString();
+    print("hehe" + jsonStr);
 
-    // return newresponse['choices'][0]['text'];
+    final jsonList = jsonDecode(jsonStr) as List<dynamic>;
+    final messages =
+        jsonList.map((json) => ChatMessage.fromJson(json)).toList();
+    for (var i = 0; i < messages.length; i++) {
+      print(messages[i].text);
+    }
+    return messages;
   }
 
   ListView messageList() {
