@@ -47,6 +47,7 @@ class _ChatPageState extends State<ChatPage> {
   String _textSpeech = "";
   bool isListening = false;
   bool isSwitched = false;
+  bool isSpeaking = false;
   @override
   void initState() {
     super.initState();
@@ -192,9 +193,21 @@ class _ChatPageState extends State<ChatPage> {
         return ChatMessageWidget(
           text: message.text,
           isUserMessage: message.isUserMessage,
+          onSpeakBtn: () => {handleSpeak(message.text)},
         );
       },
     );
+  }
+
+  void handleSpeak(String text) {
+    setState(() {
+      isSpeaking = !isSpeaking;
+    });
+    if (isSpeaking) {
+      stop();
+    } else {
+      speak(text);
+    }
   }
 
   Widget voiceBtn() {
@@ -248,7 +261,7 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                   );
                   if (isSwitched) {
-                    Speak(value);
+                    speak(value);
                   }
                 });
                 Future.delayed(const Duration(milliseconds: 50))
@@ -312,18 +325,26 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
-void Speak(text) async {
+void speak(text) async {
   await flutterTts.setLanguage("en-US");
   await flutterTts.setPitch(1);
   await flutterTts.speak(text);
 }
 
+void stop() async {
+  await flutterTts.stop();
+}
+
 class ChatMessageWidget extends StatelessWidget {
   ChatMessageWidget(
-      {super.key, required this.text, required this.isUserMessage});
+      {super.key,
+      required this.text,
+      required this.isUserMessage,
+      required this.onSpeakBtn});
 
   final String text;
   final bool isUserMessage;
+  final VoidCallback onSpeakBtn;
 
   @override
   Widget build(BuildContext context) {
@@ -332,8 +353,8 @@ class ChatMessageWidget extends StatelessWidget {
         Icons.speaker_notes,
         color: Color.fromRGBO(142, 142, 160, 1),
       ),
-      onPressed: () async {
-        Speak(text);
+      onPressed: () {
+        onSpeakBtn();
       },
     );
     return Container(
