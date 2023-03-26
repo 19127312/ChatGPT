@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:dart_openai/openai.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -8,7 +8,8 @@ import 'chat_message.dart';
 import "package:speech_to_text/speech_to_text.dart" as stt;
 import 'package:path_provider/path_provider.dart';
 
-void main() {
+Future main() async {
+  await dotenv.load(fileName: ".env");
   runApp(const MyApp());
 }
 
@@ -26,6 +27,7 @@ class MyApp extends StatelessWidget {
 
 const backgroundColor = Color.fromARGB(255, 255, 255, 255);
 const answerBackgroundColor = Color.fromARGB(247, 247, 248, 255);
+final FlutterTts flutterTts = FlutterTts();
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -44,14 +46,20 @@ class _ChatPageState extends State<ChatPage> {
   late stt.SpeechToText _speech;
   String _textSpeech = "";
   bool isListening = false;
+  bool isSwitched = false;
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
     isLoading = false;
-    readChatMessagesFromFile().then((value) => msgs = value);
-    // msgs = readChatMessagesFromFile() as List<ChatMessage>;
-    OpenAI.apiKey = "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";
+    readChatMessagesFromFile().then((value) => {
+          setState(() {
+            msgs = value;
+          })
+        });
+
+    String? apiKey = dotenv.env['API_KEY'];
+    OpenAI.apiKey = apiKey!;
   }
 
   @override
@@ -72,6 +80,26 @@ class _ChatPageState extends State<ChatPage> {
               ),
             ),
           ),
+        ),
+        actions: [
+          Switch(
+            value: isSwitched,
+            onChanged: (value) {
+              setState(() {
+                isSwitched = value;
+              });
+            },
+          )
+        ],
+        leading: IconButton(
+          color: Color.fromRGBO(142, 142, 160, 1),
+          icon: const Icon(Icons.clear),
+          onPressed: () {
+            setState(() {
+              msgs = [];
+            });
+            writeChatMessagesToFile(msgs);
+          },
         ),
         backgroundColor: const Color.fromARGB(247, 247, 248, 255),
       ),
@@ -149,14 +177,9 @@ class _ChatPageState extends State<ChatPage> {
       return [];
     }
     final jsonStr = await file.readAsString();
-    print("hehe" + jsonStr);
-
     final jsonList = jsonDecode(jsonStr) as List<dynamic>;
     final messages =
         jsonList.map((json) => ChatMessage.fromJson(json)).toList();
-    for (var i = 0; i < messages.length; i++) {
-      print(messages[i].text);
-    }
     return messages;
   }
 
@@ -198,35 +221,40 @@ class _ChatPageState extends State<ChatPage> {
             color: Color.fromRGBO(142, 142, 160, 1),
           ),
           onPressed: () async {
+            var input = txtController.text;
             setState(
               () {
-                msgs.add(
-                  ChatMessage(
-                    text: txtController.text,
+                if (input != "") {
+                  msgs.add(ChatMessage(
+                    text: input,
                     isUserMessage: true,
-                  ),
-                );
-                isLoading = true;
-                Future.delayed(const Duration(milliseconds: 50))
-                    .then((_) => srllMessageList());
+                  ));
+                  txtController.clear();
+                  isLoading = true;
+                  Future.delayed(const Duration(milliseconds: 50))
+                      .then((_) => srllMessageList());
+                }
               },
             );
-            var input = txtController.text;
             txtController.clear();
-
-            chatGPTResponse(input).then((value) {
-              setState(() {
-                isLoading = false;
-                msgs.add(
-                  ChatMessage(
-                    text: value,
-                    isUserMessage: false,
-                  ),
-                );
+            if (input != "") {
+              chatGPTResponse(input).then((value) {
+                setState(() {
+                  isLoading = false;
+                  msgs.add(
+                    ChatMessage(
+                      text: value,
+                      isUserMessage: false,
+                    ),
+                  );
+                  if (isSwitched) {
+                    Speak(value);
+                  }
+                });
+                Future.delayed(const Duration(milliseconds: 50))
+                    .then((_) => srllMessageList());
               });
-              Future.delayed(const Duration(milliseconds: 50))
-                  .then((_) => srllMessageList());
-            });
+            }
           },
         ),
       ),
@@ -284,13 +312,18 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
+void Speak(text) async {
+  await flutterTts.setLanguage("en-US");
+  await flutterTts.setPitch(1);
+  await flutterTts.speak(text);
+}
+
 class ChatMessageWidget extends StatelessWidget {
   ChatMessageWidget(
       {super.key, required this.text, required this.isUserMessage});
 
   final String text;
   final bool isUserMessage;
-  final FlutterTts flutterTts = FlutterTts();
 
   @override
   Widget build(BuildContext context) {
@@ -300,9 +333,7 @@ class ChatMessageWidget extends StatelessWidget {
         color: Color.fromRGBO(142, 142, 160, 1),
       ),
       onPressed: () async {
-        await flutterTts.setLanguage("en-US");
-        await flutterTts.setPitch(1);
-        await flutterTts.speak(text);
+        Speak(text);
       },
     );
     return Container(
